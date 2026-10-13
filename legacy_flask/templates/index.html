@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CinePulse — Movie Sentiment Analysis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-badge">
+                <span class="pulse-dot"></span>
+                <span>Kaggle IMDB Dataset &bull; Scikit-Learn NLP</span>
+            </div>
+            <h1 class="header-title">
+                <span class="icon">🎬</span> CinePulse Sentiment AI
+            </h1>
+            <p class="header-subtitle">
+                Classify movie review sentiment with high-precision machine learning and real-time word attribution.
+            </p>
+        </header>
+
+        <!-- Main Workspace Grid -->
+        <main class="main-layout">
+            <!-- Left Column: Input Form -->
+            <section class="card input-card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Movie Review Input
+                    </h2>
+                    <span class="badge badge-info">NLP Classifier</span>
+                </div>
+
+                <!-- Quick Preset Pills -->
+                <div class="presets-container">
+                    <span class="presets-label">Quick Test Presets:</span>
+                    <div class="presets-list">
+                        {% for s in samples %}
+                        <button type="button" class="preset-btn" data-text="{{ s.text }}" title="Load: {{ s.title }}">
+                            {{ s.title }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Form -->
+                <form id="sentimentForm" method="POST" action="/">
+                    <div class="textarea-wrapper">
+                        <textarea 
+                            id="reviewInput" 
+                            name="review" 
+                            rows="6" 
+                            placeholder="Write or paste a movie review here (e.g., 'An absolute cinematic masterpiece with breathtaking visuals and stellar acting...')"
+                            required
+                        >{{ initial_review or '' }}</textarea>
+                        
+                        <div class="textarea-footer">
+                            <div class="meta-counters">
+                                <span id="charCounter">0 characters</span>
+                                <span class="dot">&bull;</span>
+                                <span id="wordCounter">0 words</span>
+                            </div>
+                            <button type="button" id="clearBtn" class="text-btn">Clear</button>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" id="submitBtn" class="btn btn-primary">
+                            <span class="btn-text">
+                                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                                Analyze Sentiment
+                            </span>
+                            <span class="btn-spinner" style="display: none;"></span>
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Right Column: Live Results & Analytics -->
+            <section class="card result-card" id="resultContainer">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        Sentiment Analysis Verdict
+                    </h2>
+                    <span id="verdictPill" class="badge badge-neutral">Awaiting Review</span>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="empty-state" {% if initial_result %}style="display: none;"{% endif %}>
+                    <div class="empty-icon">🍿</div>
+                    <h3>No Review Analyzed Yet</h3>
+                    <p>Enter a movie review on the left or select a quick preset to see the real-time sentiment verdict, confidence meter, and influential words.</p>
+                </div>
+
+                <!-- Analysis Content -->
+                <div id="analysisContent" class="analysis-content" {% if not initial_result %}style="display: none;"{% endif %}>
+                    <!-- Main Verdict Banner -->
+                    <div id="verdictBanner" class="verdict-banner {% if initial_result %}{{ initial_result.sentiment.lower() }}{% endif %}">
+                        <div class="verdict-icon-box" id="verdictEmoji">
+                            {% if initial_result and initial_result.sentiment == 'Positive' %}🎉
+                            {% elif initial_result and initial_result.sentiment == 'Negative' %}💔
+                            {% else %}⚖️{% endif %}
+                        </div>
+                        <div class="verdict-details">
+                            <span class="verdict-label">Predicted Sentiment</span>
+                            <h3 class="verdict-headline" id="verdictTitle">
+                                {{ initial_result.sentiment if initial_result else 'Neutral' }}
+                            </h3>
+                        </div>
+                        <div class="verdict-score-box">
+                            <span class="confidence-number" id="confidenceValue">
+                                {{ initial_result.confidence if initial_result else '0' }}%
+                            </span>
+                            <span class="confidence-label">Confidence</span>
+                        </div>
+                    </div>
+
+                    <!-- Dual Probability Gauge -->
+                    <div class="metrics-block">
+                        <div class="bar-labels">
+                            <span class="label-pos">Positive: <strong id="posPercent">{{ initial_result.positive_score if initial_result else '0' }}%</strong></span>
+                            <span class="label-neg">Negative: <strong id="negPercent">{{ initial_result.negative_score if initial_result else '0' }}%</strong></span>
+                        </div>
+                        <div class="probability-track">
+                            <div id="positiveBar" class="prob-bar positive-fill" style="width: {{ initial_result.positive_score if initial_result else 50 }}%;"></div>
+                            <div id="negativeBar" class="prob-bar negative-fill" style="width: {{ initial_result.negative_score if initial_result else 50 }}%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Key Words / Explainability -->
+                    <div class="explainability-block">
+                        <h4 class="section-subtitle">
+                            Key Influential Words & Phrases
+                            <span class="help-text">Terms driving the sentiment decision</span>
+                        </h4>
+                        <div id="wordChips" class="chip-container">
+                            {% if initial_result and initial_result.top_words %}
+                                {% for w in initial_result.top_words %}
+                                    <span class="chip chip-{{ w.sentiment }}">
+                                        {{ w.term }} 
+                                        <small>{{ '+' if w.sentiment == 'positive' else '-' }}{{ w.weight }}</small>
+                                    </span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">No specific polar keywords identified.</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Text Statistics -->
+                    <div class="stats-row">
+                        <div class="stat-item">
+                            <span class="stat-title">Word Count</span>
+                            <span class="stat-data" id="statWords">{{ initial_result.word_count if initial_result else '0' }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-title">Estimated Reading</span>
+                            <span class="stat-data" id="statReadTime">{{ initial_result.reading_time_sec if initial_result else '0' }}s</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-title">Model Accuracy</span>
+                            <span class="stat-data" id="statAccuracy">{{ initial_result.accuracy if initial_result else '100' }}%</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Information / Kaggle Dataset Banner -->
+        <footer class="footer-card">
+            <div class="footer-info">
+                <div class="footer-icon">📊</div>
+                <div>
+                    <h4>Kaggle Dataset Compatibility</h4>
+                    <p>Designed for Kaggle's <em>IMDB Dataset of 50K Movie Reviews</em> (`review`, `sentiment`). Place any CSV in <code>data/</code> and run <code>python train.py</code> to retrain anytime.</p>
+                </div>
+            </div>
+            <div class="footer-meta">
+                <span class="tag">TF-IDF Vectorizer</span>
+                <span class="tag">Logistic Regression</span>
+                <span class="tag">Flask 3.1</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

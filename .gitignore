@@ -1,0 +1,30 @@
+# Environment variables & secrets
+.env
+*.env
+!.env.example
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+
+# Testing & Linting
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Large external datasets (preserve data/imdb_dataset.csv as benchmark)
+data/IMDB Dataset.csv
+data/*.zip
+data/*.tar.gz
+
+# Logs
+*.log

@@ -1,0 +1,62 @@
+{
+  "model_type": "TF-IDF (Unigrams + Bigrams) + Logistic Regression",
+  "trained_at": "2026-10-13T17:50:15.072669+00:00",
+  "dataset_name": "imdb_dataset.csv",
+  "total_samples": 300,
+  "train_samples": 240,
+  "test_samples": 60,
+  "split_ratio": "80/20",
+  "vocabulary_size": 2920,
+  "ngram_range": [
+    1,
+    2
+  ],
+  "classes": [
+    "negative",
+    "positive"
+  ],
+  "accuracy": 0.8333,
+  "precision": 0.8056,
+  "recall": 0.9062,
+  "f1_score": 0.8529,
+  "precision_macro": 0.8403,
+  "recall_macro": 0.8281,
+  "f1_macro": 0.8303,
+  "confusion_matrix": [
+    [
+      21,
+      7
+    ],
+    [
+      3,
+      29
+    ]
+  ],
+  "classification_report": {
+    "negative": {
+      "precision": 0.875,
+      "recall": 0.75,
+      "f1-score": 0.8076923076923077,
+      "support": 28.0
+    },
+    "positive": {
+      "precision": 0.8055555555555556,
+      "recall": 0.90625,
+      "f1-score": 0.8529411764705882,
+      "support": 32.0
+    },
+    "accuracy": 0.8333333333333334,
+    "macro avg": {
+      "precision": 0.8402777777777778,
+      "recall": 0.828125,
+      "f1-score": 0.8303167420814479,
+      "support": 60.0
+    },
+    "weighted avg": {
+      "precision": 0.837962962962963,
+      "recall": 0.8333333333333334,
+      "f1-score": 0.8318250377073907,
+      "support": 60.0
+    }
+  }
+}
