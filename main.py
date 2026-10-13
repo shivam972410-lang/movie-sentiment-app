@@ -280,11 +280,24 @@ async def get_movie_details(title: str):
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(omdb_url, params=params)
 
-        if resp.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"OMDb service returned status code {resp.status_code}."
-            )
+        if resp.status_code == 401:
+            return {
+                "status": "unconfigured",
+                "message": (
+                    "OMDb returned '401 Unauthorized' (API key inactive or invalid). "
+                    "Please check your email and click the activation link sent by OMDb. "
+                    "Note: It can take a few minutes for OMDb to activate newly registered keys."
+                ),
+                "movie": None,
+                "plot_sentiment": None
+            }
+        elif resp.status_code != 200:
+            return {
+                "status": "error",
+                "message": f"OMDb service returned status code {resp.status_code}.",
+                "movie": None,
+                "plot_sentiment": None
+            }
 
         data = resp.json()
         if data.get("Response") == "False":
@@ -312,10 +325,12 @@ async def get_movie_details(title: str):
         }
 
     except httpx.RequestError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Network error communicating with OMDb API: {str(exc)}"
-        )
+        return {
+            "status": "error",
+            "message": f"Network error contacting OMDb API: {str(exc)}",
+            "movie": None,
+            "plot_sentiment": None
+        }
 
 
 @app.post("/chat", response_model=ChatResponse, tags=["AI Chatbot"])

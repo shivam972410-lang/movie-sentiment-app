@@ -99,7 +99,7 @@ class TestFastAPIBackend(unittest.TestCase):
         data = resp.json()
         self.assertIn("status", data)
         # Should be unconfigured (if no key in env) or success/not_found
-        self.assertIn(data["status"], ["unconfigured", "success", "not_found"])
+        self.assertIn(data["status"], ["unconfigured", "success", "not_found", "error"])
 
     def test_movie_empty_title_returns_400_or_404(self):
         """Test GET /movie/ with whitespace title."""
