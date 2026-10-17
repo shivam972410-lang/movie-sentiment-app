@@ -8,7 +8,6 @@ Features:
 - Session state prediction history
 - Batch CSV upload, analysis, and download
 - OMDb movie lookup with plot narrative sentiment analysis
-- CineBot AI assistant powered by Google Gemini via backend
 - Model performance metrics & confusion matrix visualization
 """
 
@@ -195,8 +194,6 @@ SAMPLE_REVIEWS = [
 # Initialize session states
 if "history" not in st.session_state:
     st.session_state.history = []
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
 if "review_input" not in st.session_state:
     st.session_state.review_input = ""
 
@@ -314,7 +311,7 @@ st.sidebar.markdown(
     - **Architecture**: Decoupled FastAPI + Streamlit
     - **ML Model**: TF-IDF + Logistic Regression
     - **Dataset**: IMDb Movie Reviews (Stratified 80/20)
-    - **Integrations**: OMDb API & Gemini API
+    - **Integrations**: OMDb API
     """
 )
 
@@ -327,7 +324,6 @@ tabs = st.tabs([
     "🎯 Review Predictor",
     "📂 Batch CSV Analysis",
     "🍿 Movie Explorer (OMDb)",
-    "🤖 CineBot AI (Gemini)",
     "📊 Model Performance"
 ])
 
@@ -798,106 +794,9 @@ with tabs[2]:
 
 
 # ==========================================
-# TAB 4: CineBot AI Chatbot (Gemini Integration)
+# TAB 4: Model Performance & Metrics
 # ==========================================
 with tabs[3]:
-    st.markdown("### 🤖 CineBot — Cinema AI Assistant")
-    st.markdown(
-        "Chat with **CineBot**, an AI cinema critic and film analyst powered by **Google Gemini**. "
-        "Ask about movie trivia, directing styles, screenwriting analysis, or recommendations."
-    )
-
-    # Suggestion chips
-    st.markdown("##### 💡 Suggested Questions:")
-    suggest_cols = st.columns(3)
-    suggest_prompts = [
-        "Recommend top 5 mind-bending sci-fi movies and explain why they work.",
-        "How does Christopher Nolan use sound design and non-linear narrative structure?",
-        "Why did The Shawshank Redemption resonate so strongly with audiences worldwide?"
-    ]
-    for idx, prompt_text in enumerate(suggest_prompts):
-        if suggest_cols[idx].button(f"💬 '{prompt_text[:40]}...'", key=f"sug_{idx}", use_container_width=True):
-            st.session_state.chat_history.append({"role": "user", "content": prompt_text})
-            # Trigger response
-            if is_online:
-                with st.spinner("CineBot is thinking..."):
-                    try:
-                        c_resp = requests.post(
-                            f"{backend_url}/chat",
-                            json={"message": prompt_text, "history": []},
-                            timeout=25.0
-                        )
-                        if c_resp.status_code == 200:
-                            data = c_resp.json()
-                            st.session_state.chat_history.append({
-                                "role": "assistant",
-                                "content": data.get("reply", "No reply.")
-                            })
-                    except Exception as err:
-                        st.session_state.chat_history.append({
-                            "role": "assistant",
-                            "content": f"Connection error: {err}"
-                        })
-            st.rerun()
-
-    st.divider()
-
-    # Display chat history
-    for msg in st.session_state.chat_history:
-        if msg["role"] == "user":
-            with st.chat_message("user", avatar="👤"):
-                st.markdown(msg["content"])
-        else:
-            with st.chat_message("assistant", avatar="🎬"):
-                st.markdown(msg["content"])
-
-    # Chat Input
-    user_input = st.chat_input("Ask CineBot about movies, directors, themes...")
-    if user_input:
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
-        with st.chat_message("user", avatar="👤"):
-            st.markdown(user_input)
-
-        if not is_online:
-            with st.chat_message("assistant", avatar="🎬"):
-                st.error("FastAPI backend is offline. Start the backend to chat with CineBot.")
-        else:
-            with st.chat_message("assistant", avatar="🎬"):
-                with st.spinner("Consulting CineBot..."):
-                    try:
-                        history_payload = [
-                            {"role": m["role"], "content": m["content"]}
-                            for m in st.session_state.chat_history[:-1]
-                        ]
-                        c_resp = requests.post(
-                            f"{backend_url}/chat",
-                            json={"message": user_input, "history": history_payload},
-                            timeout=25.0
-                        )
-                        if c_resp.status_code == 200:
-                            data = c_resp.json()
-                            reply = data.get("reply", "No reply received.")
-                            st.markdown(reply)
-                            st.session_state.chat_history.append({"role": "assistant", "content": reply})
-                        else:
-                            err_msg = f"API Error: {c_resp.status_code}"
-                            st.error(err_msg)
-                            st.session_state.chat_history.append({"role": "assistant", "content": err_msg})
-                    except Exception as ex:
-                        err_text = f"Error communicating with chatbot service: {ex}"
-                        st.error(err_text)
-                        st.session_state.chat_history.append({"role": "assistant", "content": err_text})
-
-    if st.session_state.chat_history:
-        if st.button("🗑️ Clear Chat History", key="clear_chat_btn"):
-            st.session_state.chat_history = []
-            st.rerun()
-
-
-# ==========================================
-# TAB 5: Model Performance & Metrics
-# ==========================================
-with tabs[4]:
     st.markdown("### 📊 Machine Learning Model Evaluation")
     st.markdown(
         "Actual, verified metrics calculated on the 20% holdout test set using an **80/20 Stratified Split**. "
@@ -1018,7 +917,7 @@ st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #64748b; font-size: 0.85rem;'>"
     "🎬 <b>CinePulse Movie Sentiment AI</b> — Minor Project Demonstration &bull; "
-    "FastAPI + Streamlit + Scikit-Learn + OMDb + Gemini"
+    "FastAPI + Streamlit + Scikit-Learn + OMDb"
     "</div>",
     unsafe_allow_html=True
 )

@@ -1,7 +1,7 @@
 """
 FastAPI Backend for Movie Sentiment Analysis.
 Provides RESTful endpoints for sentiment prediction, batch classification,
-OMDb movie metadata retrieval with plot sentiment, and Gemini-powered CineBot chat.
+and OMDb movie metadata retrieval with plot sentiment.
 """
 
 import os
@@ -32,13 +32,11 @@ API_TITLE = "Movie Sentiment Analysis API"
 API_VERSION = "2.0.0"
 API_DESCRIPTION = (
     "Production-grade Machine Learning API for movie review sentiment classification, "
-    "explainable AI word attribution, OMDb film retrieval with plot sentiment, "
-    "and Google Gemini AI cinema consultation."
+    "explainable AI word attribution, and OMDb film retrieval with plot sentiment."
 )
 
 CONFIDENCE_THRESHOLD_ENV = float(os.getenv("CONFIDENCE_THRESHOLD", "0.60"))
 OMDB_API_KEY = os.getenv("OMDB_API_KEY", "").strip()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 
 app = FastAPI(
     title=API_TITLE,
@@ -107,22 +105,6 @@ class BatchPredictResponse(BaseModel):
     results: List[PredictResponse]
 
 
-class ChatMessage(BaseModel):
-    role: str = Field(..., description="'user' or 'assistant' / 'model'")
-    content: str = Field(...)
-
-
-class ChatRequest(BaseModel):
-    message: str = Field(..., description="User query about movies or sentiment", min_length=1)
-    history: Optional[List[ChatMessage]] = Field(default=[], description="Previous conversation turns")
-
-
-class ChatResponse(BaseModel):
-    status: str = "success"
-    reply: str
-    model_used: str
-
-
 # ==========================================
 # API Endpoints
 # ==========================================
@@ -140,7 +122,6 @@ def root():
             "predict": "/predict",
             "batch_predict": "/predict/batch",
             "movie_lookup": "/movie/{title}",
-            "chat": "/chat",
             "metrics": "/metrics"
         }
     }
@@ -165,8 +146,7 @@ def health_check():
         "model_error": model_error,
         "metrics_available": metrics_available,
         "integrations": {
-            "omdb_api_configured": bool(OMDB_API_KEY),
-            "gemini_api_configured": bool(GEMINI_API_KEY)
+            "omdb_api_configured": bool(OMDB_API_KEY)
         },
         "default_confidence_threshold": CONFIDENCE_THRESHOLD_ENV
     }
@@ -787,109 +767,6 @@ async def get_movie_details(title: str, apikey: Optional[str] = Query(default=No
         "plot_sentiment": None
     }
 
-
-@app.post("/chat", response_model=ChatResponse, tags=["AI Chatbot"])
-async def chat_with_cinebot(request: ChatRequest):
-    """
-    Answers movie queries using Google Gemini API when configured.
-    Never exposes raw API keys.
-    """
-    query = request.message.strip()
-    if not query:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Chat message cannot be empty."
-        )
-
-    api_key = os.getenv("GEMINI_API_KEY", "").strip() or GEMINI_API_KEY
-    if not api_key:
-        return {
-            "status": "unconfigured",
-            "reply": (
-                "Google Gemini API key is not configured. Please add GEMINI_API_KEY "
-                "to your .env file to enable the CineBot AI Assistant. "
-                "You can get a free key at https://aistudio.google.com/app/apikey"
-            ),
-            "model_used": "none"
-        }
-
-    # Construct conversation payload for Gemini REST API
-    system_instruction = (
-        "You are CineBot, an expert film critic, cinema scholar, and helpful movie assistant. "
-        "You provide engaging, articulate, and accurate answers about films, directors, screenplay structures, "
-        "cinematic history, and movie review sentiment analysis. Keep answers concise, informative, and formatted with markdown."
-    )
-
-    gemini_endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
-
-    # Build contents array
-    contents = []
-    # Include history turns if present
-    for turn in request.history:
-        role = "user" if turn.role.lower() in ["user", "human"] else "model"
-        contents.append({
-            "role": role,
-            "parts": [{"text": turn.content}]
-        })
-
-    # Add current query
-    contents.append({
-        "role": "user",
-        "parts": [{"text": query}]
-    })
-
-    payload = {
-        "system_instruction": {
-            "parts": [{"text": system_instruction}]
-        },
-        "contents": contents,
-        "generationConfig": {
-            "temperature": 0.7,
-            "maxOutputTokens": 800
-        }
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            resp = await client.post(gemini_endpoint, json=payload)
-
-        # Fallback to gemini-1.5-flash if 2.0-flash is unavailable or returns 404
-        if resp.status_code == 404:
-            fallback_endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                resp = await client.post(fallback_endpoint, json=payload)
-
-        if resp.status_code != 200:
-            error_data = resp.json().get("error", {})
-            error_msg = error_data.get("message", f"Gemini API returned status {resp.status_code}")
-            return {
-                "status": "error",
-                "reply": f"Gemini API error: {error_msg}. Please verify your API key and quota.",
-                "model_used": "gemini-error"
-            }
-
-        response_json = resp.json()
-        candidates = response_json.get("candidates", [])
-        if not candidates:
-            return {
-                "status": "error",
-                "reply": "No response generated by the model. Please rephrase your question.",
-                "model_used": "gemini"
-            }
-
-        reply_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-        return {
-            "status": "success",
-            "reply": reply_text.strip() or "No response generated.",
-            "model_used": "gemini-flash"
-        }
-
-    except httpx.RequestError as exc:
-        return {
-            "status": "error",
-            "reply": f"Network error contacting Gemini API: {str(exc)}",
-            "model_used": "none"
-        }
 
 
 @app.get("/metrics", tags=["Model Evaluation"])
