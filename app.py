@@ -227,6 +227,48 @@ def check_backend_health(url: str):
         return False, {"error": str(e)}
 
 
+@st.cache_data(show_spinner=False, ttl=86400)
+def fetch_poster_bytes(url: str):
+    """
+    Downloads image bytes server-side using desktop browser User-Agent
+    to bypass CDN hotlinking blocks (such as Amazon/IMDb or Wikimedia restrictions).
+    Cached for instant display.
+    """
+    if not url or url == "N/A" or not str(url).startswith("http"):
+        return None
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+        }
+        resp = requests.get(url, headers=headers, timeout=3.5)
+        if resp.status_code == 200 and len(resp.content) > 500:
+            return resp.content
+    except Exception:
+        pass
+    return None
+
+
+def render_cinema_card(title: str, year: str, rating: str, genre: str):
+    """Renders a stylish glowing cinema poster card fallback with title, year, genre, and rating."""
+    card_html = f"""
+    <div style="background: linear-gradient(145deg, #0d1527 0%, #17213c 50%, #0f172a 100%); 
+                border: 2px solid #f5c518; border-radius: 14px; padding: 28px 16px; 
+                text-align: center; color: #f8fafc; box-shadow: 0 10px 28px rgba(0,0,0,0.65);">
+        <div style="font-size: 3.8rem; margin-bottom: 12px; filter: drop-shadow(0 4px 10px rgba(245,197,24,0.45));">🎬</div>
+        <h3 style="margin: 0 0 8px 0; color: #f5c518; font-size: 1.3rem; font-weight: 800; letter-spacing: 0.5px;">{title}</h3>
+        <div style="color: #94a3b8; font-size: 0.88rem; margin-bottom: 14px; font-weight: 500;">{year} &bull; {genre}</div>
+        <div style="display: inline-block; background: rgba(245, 197, 24, 0.15); 
+                    border: 1.5px solid rgba(245, 197, 24, 0.65); color: #f5c518; 
+                    padding: 6px 18px; border-radius: 20px; font-weight: 800; font-size: 0.95rem;
+                    box-shadow: 0 2px 10px rgba(245, 197, 24, 0.2);">
+            ⭐ {rating}/10
+        </div>
+    </div>
+    """
+    st.markdown(card_html, unsafe_allow_html=True)
+
+
 is_online, health_data = check_backend_health(backend_url)
 
 if is_online:
@@ -588,6 +630,13 @@ with tabs[2]:
             all_hindi_titles = []
 
     # Quick movie test presets - Bollywood & International
+    if "movie_title_input" not in st.session_state:
+        st.session_state.movie_title_input = ""
+    if "execute_search" not in st.session_state:
+        st.session_state.execute_search = False
+    if "searched_movie_data" not in st.session_state:
+        st.session_state.searched_movie_data = None
+
     st.markdown("##### 🇮🇳 Top Bollywood Hits:")
     hindi_cols = st.columns(6)
     hindi_movies = [
@@ -601,6 +650,7 @@ with tabs[2]:
     for idx, hm in enumerate(hindi_movies):
         if hindi_cols[idx].button(f"🇮🇳 {hm}", key=f"hindi_preset_{idx}", use_container_width=True):
             st.session_state.movie_title_input = hm
+            st.session_state.execute_search = True
 
     if all_hindi_titles:
         selected_from_catalog = st.selectbox(
@@ -609,7 +659,10 @@ with tabs[2]:
             key="hindi_dropdown"
         )
         if selected_from_catalog != "-- Click here to select any Hindi movie --":
-            st.session_state.movie_title_input = selected_from_catalog
+            if st.session_state.get("prev_dropdown_selection") != selected_from_catalog:
+                st.session_state.prev_dropdown_selection = selected_from_catalog
+                st.session_state.movie_title_input = selected_from_catalog
+                st.session_state.execute_search = True
 
     st.markdown("##### 🌍 International Cinema Presets:")
     hollywood_cols = st.columns(6)
@@ -624,9 +677,7 @@ with tabs[2]:
     for idx, pm in enumerate(hollywood_movies):
         if hollywood_cols[idx].button(f"🎬 {pm}", key=f"hollywood_preset_{idx}", use_container_width=True):
             st.session_state.movie_title_input = pm
-
-    if "movie_title_input" not in st.session_state:
-        st.session_state.movie_title_input = ""
+            st.session_state.execute_search = True
 
     movie_col_input, movie_col_btn = st.columns([3, 1])
     with movie_col_input:
@@ -640,7 +691,10 @@ with tabs[2]:
         st.write("")
         search_movie_btn = st.button("🔍 Search Movie", type="primary", use_container_width=True)
 
-    if search_movie_btn or (st.session_state.movie_title_input and not movie_title_query):
+    do_search = search_movie_btn or st.session_state.execute_search
+    st.session_state.execute_search = False
+
+    if do_search:
         search_target = movie_title_query.strip() or st.session_state.movie_title_input.strip()
         if not search_target:
             st.warning("Please enter a movie title to search.")
@@ -651,107 +705,96 @@ with tabs[2]:
                 try:
                     resp = requests.get(f"{backend_url}/movie/{search_target}", timeout=10.0)
                     if resp.status_code == 200:
-                        data = resp.json()
-                        status_str = data.get("status")
-
-                        if status_str == "unconfigured":
-                            st.warning(
-                                "⚙️ **OMDb API Key Missing**\n\n"
-                                f"{data.get('message')}\n\n"
-                                "**How to configure:**\n"
-                                "1. Get a free key at [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx)\n"
-                                "2. Add `OMDB_API_KEY=your_key_here` to your `.env` file\n"
-                                "3. Restart the FastAPI backend."
-                            )
-                        elif status_str == "not_found":
-                            st.error(f"❌ {data.get('message')}")
-                        elif status_str == "success":
-                            movie = data.get("movie", {})
-                            plot_analysis = data.get("plot_sentiment")
-
-                            st.success(f"Found: **{movie.get('Title')} ({movie.get('Year')})**")
-
-                            col_poster, col_details = st.columns([1, 2])
-
-                            with col_poster:
-                                poster_url = movie.get("Poster")
-                                mov_title = movie.get("Title", "Movie")
-                                mov_year = movie.get("Year", "")
-                                mov_rating = movie.get("imdbRating", "N/A")
-                                mov_genre = movie.get("Genre", "Cinema")
-
-                                if poster_url and poster_url != "N/A":
-                                    # Use referrerpolicy="no-referrer" to prevent CDN hotlinking blocks
-                                    poster_html = f"""
-                                    <div style="text-align: center; margin-bottom: 12px;">
-                                        <img src="{poster_url}" 
-                                             alt="{mov_title} Poster" 
-                                             referrerpolicy="no-referrer"
-                                             style="width: 100%; max-width: 280px; height: auto; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); border: 2px solid #1e293b; object-fit: cover;"
-                                             onerror="this.style.display='none'; document.getElementById('poster-card-fallback').style.display='block';" />
-                                    </div>
-                                    <div id="poster-card-fallback" style="display: none; background: linear-gradient(135deg, #131b2e, #1e293b); border: 2px dashed #f5c518; border-radius: 12px; padding: 30px 15px; text-align: center; color: #f8fafc; box-shadow: 0 4px 14px rgba(0,0,0,0.4);">
-                                        <div style="font-size: 3rem; margin-bottom: 10px;">🎬</div>
-                                        <h3 style="margin: 0; color: #f5c518; font-size: 1.2rem;">{mov_title}</h3>
-                                        <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 6px;">{mov_year} &bull; {mov_genre}</div>
-                                        <div style="margin-top: 12px; display: inline-block; background: rgba(245, 197, 24, 0.2); color: #f5c518; padding: 4px 12px; border-radius: 14px; font-weight: bold; font-size: 0.9rem;">⭐ {mov_rating}/10</div>
-                                    </div>
-                                    """
-                                    st.markdown(poster_html, unsafe_allow_html=True)
-                                else:
-                                    fallback_card = f"""
-                                    <div style="background: linear-gradient(135deg, #131b2e, #1e293b); border: 2px solid #1e293b; border-radius: 12px; padding: 30px 15px; text-align: center; color: #f8fafc; box-shadow: 0 4px 14px rgba(0,0,0,0.4);">
-                                        <div style="font-size: 3rem; margin-bottom: 10px;">🎬</div>
-                                        <h3 style="margin: 0; color: #f5c518; font-size: 1.2rem;">{mov_title}</h3>
-                                        <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 6px;">{mov_year} &bull; {mov_genre}</div>
-                                        <div style="margin-top: 12px; display: inline-block; background: rgba(245, 197, 24, 0.2); color: #f5c518; padding: 4px 12px; border-radius: 14px; font-weight: bold; font-size: 0.9rem;">⭐ {mov_rating}/10</div>
-                                    </div>
-                                    """
-                                    st.markdown(fallback_card, unsafe_allow_html=True)
-
-                            with col_details:
-                                st.markdown(f"## {movie.get('Title')} ({movie.get('Year')})")
-                                st.markdown(f"**Genre:** `{movie.get('Genre')}` | **Runtime:** `{movie.get('Runtime')}` | **Rated:** `{movie.get('Rated')}`")
-                                st.markdown(f"⭐ **IMDb Rating:** `{movie.get('imdbRating')}/10` ({movie.get('imdbVotes')} votes) | 🏆 **Metascore:** `{movie.get('Metascore')}`")
-                                st.markdown(f"🎬 **Director:** {movie.get('Director')}")
-                                st.markdown(f"✍️ **Writers:** {movie.get('Writer')}")
-                                st.markdown(f"🌟 **Cast:** {movie.get('Actors')}")
-                                st.markdown(f"💰 **Box Office:** {movie.get('BoxOffice', 'N/A')}")
-                                st.markdown(f"🎖️ **Awards:** {movie.get('Awards', 'N/A')}")
-
-                            st.divider()
-                            st.markdown("#### 📖 Full Plot Summary")
-                            st.write(movie.get("Plot", "No plot provided."))
-
-                            # Narrative Tone Sentiment from ML Model
-                            if plot_analysis:
-                                st.markdown("#### 🎭 Narrative Plot Tone (Machine Learning Analysis)")
-                                p_sent = plot_analysis.get("sentiment")
-                                p_conf = plot_analysis.get("confidence", 0) * 100
-                                p_pos = plot_analysis.get("positive_probability", 0) * 100
-                                p_neg = plot_analysis.get("negative_probability", 0) * 100
-
-                                col_p1, col_p2 = st.columns(2)
-                                with col_p1:
-                                    if p_sent == "Positive":
-                                        st.markdown(f"**Plot Tone:** <span class='badge-positive'>UPLIFTING / HEROIC ({p_conf:.1f}% confidence)</span>", unsafe_allow_html=True)
-                                    elif p_sent == "Negative":
-                                        st.markdown(f"**Plot Tone:** <span class='badge-negative'>DARK / DRAMATIC / CONFLICT-HEAVY ({p_conf:.1f}% confidence)</span>", unsafe_allow_html=True)
-                                    else:
-                                        st.markdown(f"**Plot Tone:** <span class='badge-neutral'>BALANCED / NEUTRAL TONE</span>", unsafe_allow_html=True)
-
-                                with col_p2:
-                                    st.caption(f"Positive signals: {p_pos:.1f}% | Dark/conflict signals: {p_neg:.1f}%")
-
-                                keywords = plot_analysis.get("top_keywords", [])
-                                if keywords:
-                                    st.caption("Key thematic vocabulary extracted from plot:")
-                                    tags = " ".join([f"`{k['term']}`" for k in keywords[:6]])
-                                    st.markdown(tags)
+                        st.session_state.searched_movie_data = resp.json()
                     else:
-                        st.error(f"Error fetching movie ({resp.status_code}): {resp.text}")
-                except Exception as ex:
-                    st.error(f"Network error querying movie: {ex}")
+                        st.error(f"Backend returned status {resp.status_code}.")
+                except Exception as e:
+                    st.error(f"Failed to connect to backend: {e}")
+
+    if st.session_state.searched_movie_data:
+        data = st.session_state.searched_movie_data
+        status_str = data.get("status")
+
+        if status_str == "unconfigured":
+            st.warning(
+                "⚙️ **OMDb API Key Missing**\n\n"
+                f"{data.get('message')}\n\n"
+                "**How to configure:**\n"
+                "1. Get a free key at [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx)\n"
+                "2. Add `OMDB_API_KEY=your_key_here` to your `.env` file\n"
+                "3. Restart the FastAPI backend."
+            )
+        elif status_str == "not_found":
+            st.error(f"❌ {data.get('message')}")
+        elif status_str == "success":
+            movie = data.get("movie", {})
+            plot_analysis = data.get("plot_sentiment")
+
+            st.success(f"Found: **{movie.get('Title')} ({movie.get('Year')})**")
+
+            col_poster, col_details = st.columns([1, 2])
+
+            with col_poster:
+                poster_url = movie.get("Poster")
+                mov_title = movie.get("Title", "Movie")
+                mov_year = movie.get("Year", "")
+                mov_rating = movie.get("imdbRating", "N/A")
+                mov_genre = movie.get("Genre", "Cinema")
+
+                # Try server-side cached download first to bypass browser CDN hotlink blocks
+                poster_bytes = fetch_poster_bytes(poster_url)
+                if poster_bytes:
+                    try:
+                        st.image(poster_bytes, caption=f"{mov_title} ({mov_year})", use_container_width=True)
+                    except Exception:
+                        render_cinema_card(mov_title, mov_year, mov_rating, mov_genre)
+                elif poster_url and poster_url != "N/A" and str(poster_url).startswith("http"):
+                    try:
+                        st.image(poster_url, caption=f"{mov_title} ({mov_year})", use_container_width=True)
+                    except Exception:
+                        render_cinema_card(mov_title, mov_year, mov_rating, mov_genre)
+                else:
+                    render_cinema_card(mov_title, mov_year, mov_rating, mov_genre)
+
+            with col_details:
+                st.markdown(f"## {movie.get('Title')} ({movie.get('Year')})")
+                st.markdown(f"**Genre:** `{movie.get('Genre')}` | **Runtime:** `{movie.get('Runtime')}` | **Rated:** `{movie.get('Rated')}`")
+                st.markdown(f"⭐ **IMDb Rating:** `{movie.get('imdbRating')}/10` ({movie.get('imdbVotes')} votes) | 🏆 **Metascore:** `{movie.get('Metascore')}`")
+                st.markdown(f"🎬 **Director:** {movie.get('Director')}")
+                st.markdown(f"✍️ **Writers:** {movie.get('Writer')}")
+                st.markdown(f"🌟 **Cast:** {movie.get('Actors')}")
+                st.markdown(f"💰 **Box Office:** {movie.get('BoxOffice', 'N/A')}")
+                st.markdown(f"🎖️ **Awards:** {movie.get('Awards', 'N/A')}")
+
+            st.divider()
+            st.markdown("#### 📖 Full Plot Summary")
+            st.write(movie.get("Plot", "No plot provided."))
+
+            # Narrative Tone Sentiment from ML Model
+            if plot_analysis:
+                st.markdown("#### 🎭 Narrative Plot Tone (Machine Learning Analysis)")
+                p_sent = plot_analysis.get("sentiment")
+                p_conf = plot_analysis.get("confidence", 0) * 100
+                p_pos = plot_analysis.get("positive_probability", 0) * 100
+                p_neg = plot_analysis.get("negative_probability", 0) * 100
+
+                col_p1, col_p2 = st.columns(2)
+                with col_p1:
+                    if p_sent == "Positive":
+                        st.markdown(f"**Plot Tone:** <span class='badge-positive'>UPLIFTING / HEROIC ({p_conf:.1f}% confidence)</span>", unsafe_allow_html=True)
+                    elif p_sent == "Negative":
+                        st.markdown(f"**Plot Tone:** <span class='badge-negative'>DARK / DRAMATIC / CONFLICT-HEAVY ({p_conf:.1f}% confidence)</span>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"**Plot Tone:** <span class='badge-neutral'>BALANCED / NEUTRAL TONE</span>", unsafe_allow_html=True)
+
+                with col_p2:
+                    st.caption(f"Positive signals: {p_pos:.1f}% | Dark/conflict signals: {p_neg:.1f}%")
+
+                keywords = plot_analysis.get("top_keywords", [])
+                if keywords:
+                    st.caption("Key thematic vocabulary extracted from plot:")
+                    tags = " ".join([f"`{k['term']}`" for k in keywords[:6]])
+                    st.markdown(tags)
 
 
 # ==========================================
