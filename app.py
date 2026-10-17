@@ -168,27 +168,27 @@ CINEMA_CSS = """
 """
 st.markdown(CINEMA_CSS, unsafe_allow_html=True)
 
-# Curated sample reviews for quick 1-click testing
+# Curated sample reviews for quick 1-click testing (including top Hindi films)
 SAMPLE_REVIEWS = [
     {
-        "label": "🍿 Cinematic Masterpiece",
-        "text": "An absolute cinematic masterpiece! The direction and acting were sensational, the score was breathtaking, and the climax left the entire theater speechless."
+        "label": "🍿 3 Idiots (Masterpiece)",
+        "text": "An absolute emotional and inspiring masterpiece! Brilliant performances by Aamir Khan, Sharman, and Madhavan. The humor was brilliant and the message touched my heart."
     },
     {
-        "label": "👎 Box Office Flop",
-        "text": "A complete and utter waste of time. The script makes zero sense, the pacing is agonizingly slow, and the dialogue was painfully cringeworthy."
+        "label": "🥊 Dangal (Sports Blockbuster)",
+        "text": "Sensational biographical sports drama! Powerhouse performance by Aamir Khan, breathtaking wrestling choreography, and pure emotional goosebumps throughout."
     },
     {
-        "label": "🚀 Sci-Fi Spectacle",
-        "text": "Visually stunning sci-fi spectacle with thought-provoking philosophical themes, mind-bending concepts, and outstanding practical stunt choreography."
+        "label": "👻 Tumbbad (Mythological Horror)",
+        "text": "A visual and mythological horror masterpiece of Indian cinema. Atmospheric, haunting, exquisitely shot, and an unforgettable story about greed."
     },
     {
-        "label": "🤔 Nuanced / Mixed Review",
-        "text": "The cinematography and musical score were reasonably competent, though the screenplay had occasional pacing issues and the second act felt slightly disjointed."
+        "label": "👎 Bollywood Flop",
+        "text": "A complete and utter waste of time. Mindless script, cringeworthy dialogue, loud unnecessary songs, and wooden acting throughout."
     },
     {
-        "label": "🎭 Heartwarming Indie",
-        "text": "Smart, funny, charming, and thoroughly entertaining. The chemistry between the leads was electric, and the witty dialogue kept a smile on my face."
+        "label": "🤔 Mixed Hindi Review",
+        "text": "The music and cinematography were reasonably good, though the screenplay had pacing issues and the second half felt overly melodramatic."
     }
 ]
 
@@ -575,10 +575,24 @@ with tabs[2]:
         "and automatically analyze the sentiment tone of the movie's storyline using our ML model."
     )
 
-    # Quick movie test presets
-    st.markdown("##### ⚡ Instant Movie Test Presets:")
-    preset_cols = st.columns(6)
-    preset_movies = [
+    # Quick movie test presets - Bollywood & International
+    st.markdown("##### 🇮🇳 Top Bollywood & Hindi Movies:")
+    hindi_cols = st.columns(6)
+    hindi_movies = [
+        "3 Idiots",
+        "Dangal",
+        "Sholay",
+        "Tumbbad",
+        "Swades",
+        "Lagaan"
+    ]
+    for idx, hm in enumerate(hindi_movies):
+        if hindi_cols[idx].button(f"🇮🇳 {hm}", key=f"hindi_preset_{idx}", use_container_width=True):
+            st.session_state.movie_title_input = hm
+
+    st.markdown("##### 🌍 International Cinema:")
+    hollywood_cols = st.columns(6)
+    hollywood_movies = [
         "Inception",
         "The Dark Knight",
         "Interstellar",
@@ -586,8 +600,8 @@ with tabs[2]:
         "The Godfather",
         "Oppenheimer"
     ]
-    for idx, pm in enumerate(preset_movies):
-        if preset_cols[idx].button(f"🎬 {pm}", key=f"mov_preset_{idx}", use_container_width=True):
+    for idx, pm in enumerate(hollywood_movies):
+        if hollywood_cols[idx].button(f"🎬 {pm}", key=f"hollywood_preset_{idx}", use_container_width=True):
             st.session_state.movie_title_input = pm
 
     if "movie_title_input" not in st.session_state:
