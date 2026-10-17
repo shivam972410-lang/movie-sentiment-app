@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+import re
 
 # Load environment variables
 load_dotenv()
@@ -612,9 +613,16 @@ if os.path.exists(HINDI_MOVIES_FILE):
         print(f"Warning: could not read {HINDI_MOVIES_FILE}: {_ex}")
 
 
+def _normalize_title(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
 def _find_catalog_movie(query: str):
     """Checks offline catalog for famous titles if OMDb key is inactive/unconfigured."""
     q = query.strip().lower()
+    if not q:
+        return None
+
     aliases = {
         "ddlj": "dilwale dulhania le jayenge",
         "dilwale dulhaniya le jayenge": "dilwale dulhania le jayenge",
@@ -636,11 +644,33 @@ def _find_catalog_movie(query: str):
         "tzp": "taare zameen par",
         "chak de": "chak de! india",
         "chakde": "chak de! india",
+        "endgame": "avengers",
+        "spiderman": "spiderman",
+        "spider-man": "spiderman",
+        "kalki 2898": "kalki",
+        "pushpa 1": "pushpa",
     }
     target = aliases.get(q, q)
+    target_norm = _normalize_title(target)
+
+    # 1. Exact or normalized key match
     for key, data in FALLBACK_MOVIES.items():
-        if key in target or target in key or target == key:
+        if key == target or _normalize_title(key) == target_norm:
             return data
+
+    # 2. Substring match on key
+    for key, data in FALLBACK_MOVIES.items():
+        k_norm = _normalize_title(key)
+        if (len(k_norm) >= 3 and k_norm in target_norm) or (len(target_norm) >= 3 and target_norm in k_norm):
+            return data
+
+    # 3. Match by Movie Title attribute in dictionary
+    for data in FALLBACK_MOVIES.values():
+        t_title = data.get("Title", "")
+        t_norm = _normalize_title(t_title)
+        if (len(target_norm) >= 3 and target_norm in t_norm) or (len(t_norm) >= 3 and t_norm in target_norm):
+            return data
+
     return None
 
 
