@@ -575,22 +575,43 @@ with tabs[2]:
         "and automatically analyze the sentiment tone of the movie's storyline using our ML model."
     )
 
+    # Load all Hindi movies for dropdown
+    all_hindi_titles = []
+    hindi_json_file = os.path.join(os.path.dirname(__file__), "data", "hindi_movies.json")
+    if os.path.exists(hindi_json_file):
+        try:
+            import json
+            with open(hindi_json_file, "r", encoding="utf-8") as f:
+                h_data = json.load(f)
+                all_hindi_titles = sorted(list({m["Title"] for m in h_data.values()}))
+        except Exception:
+            all_hindi_titles = []
+
     # Quick movie test presets - Bollywood & International
-    st.markdown("##### 🇮🇳 Top Bollywood & Hindi Movies:")
+    st.markdown("##### 🇮🇳 Top Bollywood Hits:")
     hindi_cols = st.columns(6)
     hindi_movies = [
+        "12th Fail",
+        "Stree 2",
         "3 Idiots",
         "Dangal",
-        "Sholay",
         "Tumbbad",
-        "Swades",
-        "Lagaan"
+        "Jawan"
     ]
     for idx, hm in enumerate(hindi_movies):
         if hindi_cols[idx].button(f"🇮🇳 {hm}", key=f"hindi_preset_{idx}", use_container_width=True):
             st.session_state.movie_title_input = hm
 
-    st.markdown("##### 🌍 International Cinema:")
+    if all_hindi_titles:
+        selected_from_catalog = st.selectbox(
+            "📋 Or Choose directly from All Hindi Movies Catalog (40+ Films):",
+            options=["-- Click here to select any Hindi movie --"] + all_hindi_titles,
+            key="hindi_dropdown"
+        )
+        if selected_from_catalog != "-- Click here to select any Hindi movie --":
+            st.session_state.movie_title_input = selected_from_catalog
+
+    st.markdown("##### 🌍 International Cinema Presets:")
     hollywood_cols = st.columns(6)
     hollywood_movies = [
         "Inception",

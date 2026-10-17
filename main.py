@@ -5,6 +5,7 @@ OMDb movie metadata retrieval with plot sentiment, and Gemini-powered CineBot ch
 """
 
 import os
+import json
 import httpx
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
@@ -25,6 +26,7 @@ from ml_service import (
 )
 
 # App configuration
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 API_TITLE = "Movie Sentiment Analysis API"
 API_VERSION = "2.0.0"
 API_DESCRIPTION = (
@@ -599,6 +601,16 @@ FALLBACK_MOVIES = {
     }
 }
 
+# Automatically load extended Hindi movies database
+HINDI_MOVIES_FILE = os.path.join(BASE_DIR, "data", "hindi_movies.json")
+if os.path.exists(HINDI_MOVIES_FILE):
+    try:
+        with open(HINDI_MOVIES_FILE, "r", encoding="utf-8") as _hf:
+            _hindi_data = json.load(_hf)
+            FALLBACK_MOVIES.update(_hindi_data)
+    except Exception as _ex:
+        print(f"Warning: could not read {HINDI_MOVIES_FILE}: {_ex}")
+
 
 def _find_catalog_movie(query: str):
     """Checks offline catalog for famous titles if OMDb key is inactive/unconfigured."""
@@ -610,12 +622,45 @@ def _find_catalog_movie(query: str):
         "3 idiot": "3 idiots",
         "three idiots": "3 idiots",
         "bajrangi": "bajrangi bhaijaan",
+        "yjhd": "yeh jawaani hai deewani",
+        "kkhh": "kuch kuch hota hai",
+        "k3g": "kabhi khushi kabhie gham",
+        "stree2": "stree 2",
+        "kgf2": "kgf",
+        "12 fail": "12th fail",
+        "twelfth fail": "12th fail",
+        "gangs of wasseypur 1": "gangs of wasseypur",
+        "gow": "gangs of wasseypur",
+        "munnabhai": "munna bhai m.b.b.s.",
+        "munna bhai": "munna bhai m.b.b.s.",
+        "tzp": "taare zameen par",
+        "chak de": "chak de! india",
+        "chakde": "chak de! india",
     }
     target = aliases.get(q, q)
     for key, data in FALLBACK_MOVIES.items():
-        if key in target or target in key:
+        if key in target or target in key or target == key:
             return data
     return None
+
+
+@app.get("/movies/catalog", tags=["OMDb Integration"])
+def get_catalog_movies():
+    """Returns list of all available catalog movies."""
+    return {
+        "status": "success",
+        "total": len(FALLBACK_MOVIES),
+        "movies": [
+            {
+                "title": m["Title"],
+                "year": m.get("Year"),
+                "genre": m.get("Genre"),
+                "rating": m.get("imdbRating"),
+                "actors": m.get("Actors")
+            }
+            for m in FALLBACK_MOVIES.values()
+        ]
+    }
 
 
 @app.get("/movie/{title}", tags=["OMDb Integration"])
