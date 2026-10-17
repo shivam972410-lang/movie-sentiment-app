@@ -675,10 +675,39 @@ with tabs[2]:
 
                             with col_poster:
                                 poster_url = movie.get("Poster")
+                                mov_title = movie.get("Title", "Movie")
+                                mov_year = movie.get("Year", "")
+                                mov_rating = movie.get("imdbRating", "N/A")
+                                mov_genre = movie.get("Genre", "Cinema")
+
                                 if poster_url and poster_url != "N/A":
-                                    st.image(poster_url, use_container_width=True)
+                                    # Use referrerpolicy="no-referrer" to prevent CDN hotlinking blocks
+                                    poster_html = f"""
+                                    <div style="text-align: center; margin-bottom: 12px;">
+                                        <img src="{poster_url}" 
+                                             alt="{mov_title} Poster" 
+                                             referrerpolicy="no-referrer"
+                                             style="width: 100%; max-width: 280px; height: auto; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); border: 2px solid #1e293b; object-fit: cover;"
+                                             onerror="this.style.display='none'; document.getElementById('poster-card-fallback').style.display='block';" />
+                                    </div>
+                                    <div id="poster-card-fallback" style="display: none; background: linear-gradient(135deg, #131b2e, #1e293b); border: 2px dashed #f5c518; border-radius: 12px; padding: 30px 15px; text-align: center; color: #f8fafc; box-shadow: 0 4px 14px rgba(0,0,0,0.4);">
+                                        <div style="font-size: 3rem; margin-bottom: 10px;">🎬</div>
+                                        <h3 style="margin: 0; color: #f5c518; font-size: 1.2rem;">{mov_title}</h3>
+                                        <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 6px;">{mov_year} &bull; {mov_genre}</div>
+                                        <div style="margin-top: 12px; display: inline-block; background: rgba(245, 197, 24, 0.2); color: #f5c518; padding: 4px 12px; border-radius: 14px; font-weight: bold; font-size: 0.9rem;">⭐ {mov_rating}/10</div>
+                                    </div>
+                                    """
+                                    st.markdown(poster_html, unsafe_allow_html=True)
                                 else:
-                                    st.info("No poster available for this title.")
+                                    fallback_card = f"""
+                                    <div style="background: linear-gradient(135deg, #131b2e, #1e293b); border: 2px solid #1e293b; border-radius: 12px; padding: 30px 15px; text-align: center; color: #f8fafc; box-shadow: 0 4px 14px rgba(0,0,0,0.4);">
+                                        <div style="font-size: 3rem; margin-bottom: 10px;">🎬</div>
+                                        <h3 style="margin: 0; color: #f5c518; font-size: 1.2rem;">{mov_title}</h3>
+                                        <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 6px;">{mov_year} &bull; {mov_genre}</div>
+                                        <div style="margin-top: 12px; display: inline-block; background: rgba(245, 197, 24, 0.2); color: #f5c518; padding: 4px 12px; border-radius: 14px; font-weight: bold; font-size: 0.9rem;">⭐ {mov_rating}/10</div>
+                                    </div>
+                                    """
+                                    st.markdown(fallback_card, unsafe_allow_html=True)
 
                             with col_details:
                                 st.markdown(f"## {movie.get('Title')} ({movie.get('Year')})")
