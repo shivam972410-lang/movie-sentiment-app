@@ -575,10 +575,29 @@ with tabs[2]:
         "and automatically analyze the sentiment tone of the movie's storyline using our ML model."
     )
 
+    # Quick movie test presets
+    st.markdown("##### ⚡ Instant Movie Test Presets:")
+    preset_cols = st.columns(6)
+    preset_movies = [
+        "Inception",
+        "The Dark Knight",
+        "Interstellar",
+        "Titanic",
+        "The Godfather",
+        "Oppenheimer"
+    ]
+    for idx, pm in enumerate(preset_movies):
+        if preset_cols[idx].button(f"🎬 {pm}", key=f"mov_preset_{idx}", use_container_width=True):
+            st.session_state.movie_title_input = pm
+
+    if "movie_title_input" not in st.session_state:
+        st.session_state.movie_title_input = ""
+
     movie_col_input, movie_col_btn = st.columns([3, 1])
     with movie_col_input:
         movie_title_query = st.text_input(
             "Search Movie Title:",
+            value=st.session_state.movie_title_input,
             placeholder="e.g. Inception, The Dark Knight, The Godfather, Titanic, Parasite"
         )
     with movie_col_btn:
@@ -586,15 +605,16 @@ with tabs[2]:
         st.write("")
         search_movie_btn = st.button("🔍 Search Movie", type="primary", use_container_width=True)
 
-    if search_movie_btn:
-        if not movie_title_query.strip():
+    if search_movie_btn or (st.session_state.movie_title_input and not movie_title_query):
+        search_target = movie_title_query.strip() or st.session_state.movie_title_input.strip()
+        if not search_target:
             st.warning("Please enter a movie title to search.")
         elif not is_online:
             st.error("FastAPI backend is offline. Start the backend to search movies.")
         else:
-            with st.spinner(f"Retrieving '{movie_title_query}' from OMDb API..."):
+            with st.spinner(f"Retrieving '{search_target}' movie data..."):
                 try:
-                    resp = requests.get(f"{backend_url}/movie/{movie_title_query.strip()}", timeout=10.0)
+                    resp = requests.get(f"{backend_url}/movie/{search_target}", timeout=10.0)
                     if resp.status_code == 200:
                         data = resp.json()
                         status_str = data.get("status")
