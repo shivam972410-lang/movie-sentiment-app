@@ -30,7 +30,10 @@ st.set_page_config(
 )
 
 # Configuration defaults
-DEFAULT_BACKEND_URL = os.getenv("FASTAPI_URL", "http://127.0.0.1:8000").rstrip("/")
+DEFAULT_BACKEND_URL = os.getenv(
+    "FASTAPI_URL",
+    "https://cinepulse-api.onrender.com"
+).rstrip("/")
 
 # Custom Cinema Dark Theme CSS
 CINEMA_CSS = """
