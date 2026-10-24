@@ -32,7 +32,7 @@ st.set_page_config(
 # Configuration defaults
 DEFAULT_BACKEND_URL = os.getenv(
     "FASTAPI_URL",
-    "http://127.0.0.1:8000"
+    "https://movie-sentiment-api-cum3.onrender.com"
 ).rstrip("/")
 
 # Custom Cinema Dark Theme CSS
