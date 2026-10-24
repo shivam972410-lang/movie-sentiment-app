@@ -216,10 +216,13 @@ backend_url = st.sidebar.text_input(
 )
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=10)
 def check_backend_health(url: str):
+    clean_url = (url or "").strip().rstrip("/")
+    if not clean_url:
+        return False, {"error": "URL is empty"}
     try:
-        r = requests.get(f"{url}/health", timeout=2.5)
+        r = requests.get(f"{clean_url}/health", timeout=8.0)
         if r.status_code == 200:
             return True, r.json()
         return False, {"error": f"Status {r.status_code}"}
