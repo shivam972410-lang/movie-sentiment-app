@@ -32,7 +32,7 @@ st.set_page_config(
 # Configuration defaults
 DEFAULT_BACKEND_URL = os.getenv(
     "FASTAPI_URL",
-    "https://cinepulse-api.onrender.com"
+    "http://127.0.0.1:8000"
 ).rstrip("/")
 
 # Custom Cinema Dark Theme CSS
@@ -228,20 +228,33 @@ def check_backend_health(url: str):
 
 
 @st.cache_data(show_spinner=False, ttl=86400)
-def fetch_poster_bytes(url: str):
+def fetch_poster_bytes(url: str, title: str = ""):
     """
-    Downloads image bytes server-side using desktop browser User-Agent
+    Downloads image bytes server-side with local cache fallback
     to bypass CDN hotlinking blocks (such as Amazon/IMDb or Wikimedia restrictions).
-    Cached for instant display.
     """
+    import re
+    # 1. Try local poster cache first for instant display
+    if title:
+        safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', title.strip().lower()) + '.jpg'
+        local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "posters", safe_name)
+        if os.path.exists(local_path) and os.path.getsize(local_path) > 1000:
+            try:
+                with open(local_path, "rb") as f:
+                    return f.read()
+            except Exception:
+                pass
+
     if not url or url == "N/A" or not str(url).startswith("http"):
         return None
+
     try:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "User-Agent": "MovieSentimentApp/2.0 (Student Project; dev@academic.edu)",
+            "Referer": "https://en.wikipedia.org/",
             "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
         }
-        resp = requests.get(url, headers=headers, timeout=3.5)
+        resp = requests.get(url, headers=headers, timeout=4.0)
         if resp.status_code == 200 and len(resp.content) > 500:
             return resp.content
     except Exception:
@@ -741,7 +754,7 @@ with tabs[2]:
                 mov_genre = movie.get("Genre", "Cinema")
 
                 # Try server-side cached download first to bypass browser CDN hotlink blocks
-                poster_bytes = fetch_poster_bytes(poster_url)
+                poster_bytes = fetch_poster_bytes(poster_url, title=mov_title)
                 if poster_bytes:
                     try:
                         st.image(poster_bytes, caption=f"{mov_title} ({mov_year})", use_container_width=True)
