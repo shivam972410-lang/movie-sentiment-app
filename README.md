@@ -1,4 +1,4 @@
-# 🎬 CinePulse — Movie Sentiment Analysis Using Machine Learning
+# 🎬 Movie Sentiment Analysis Using Machine Learning
 
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg)](https://fastapi.tiangolo.com)

@@ -23,7 +23,7 @@ import streamlit as st
 
 # Page configuration
 st.set_page_config(
-    page_title="CinePulse — Movie Sentiment AI",
+    page_title="Movie Sentiment Analysis",
     page_icon="🎬",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -205,7 +205,7 @@ if "review_input" not in st.session_state:
 # Sidebar: Backend Status & Settings
 # ==========================================
 
-st.sidebar.markdown("## 🎬 **CinePulse AI**")
+st.sidebar.markdown("## 🎬 **Movie Sentiment Analysis**")
 st.sidebar.caption("Movie Sentiment Analysis System")
 st.sidebar.divider()
 
@@ -932,7 +932,7 @@ with tabs[3]:
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #64748b; font-size: 0.85rem;'>"
-    "🎬 <b>CinePulse Movie Sentiment AI</b> — Minor Project Demonstration &bull; "
+    "🎬 <b>Movie Sentiment Analysis</b> — Minor Project Demonstration &bull; "
     "FastAPI + Streamlit + Scikit-Learn + OMDb"
     "</div>",
     unsafe_allow_html=True
