@@ -26,7 +26,7 @@ st.set_page_config(
     page_title="Movie Sentiment Analysis",
     page_icon="🎬",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # Configuration defaults
@@ -202,18 +202,10 @@ if "review_input" not in st.session_state:
 
 
 # ==========================================
-# Sidebar: Backend Status & Settings
+# Backend Configuration & Health
 # ==========================================
 
-st.sidebar.markdown("## 🎬 **Movie Sentiment Analysis**")
-st.sidebar.caption("Movie Sentiment Analysis System")
-st.sidebar.divider()
-
-backend_url = st.sidebar.text_input(
-    "FastAPI Backend URL",
-    value=DEFAULT_BACKEND_URL,
-    help="Address where the FastAPI server is running."
-)
+backend_url = DEFAULT_BACKEND_URL
 
 
 @st.cache_data(ttl=10)
@@ -286,53 +278,7 @@ def render_cinema_card(title: str, year: str, rating: str, genre: str):
 
 
 is_online, health_data = check_backend_health(backend_url)
-
-if is_online:
-    st.sidebar.success("🟢 **Backend Connected**")
-    model_ok = health_data.get("model_loaded", False)
-    if model_ok:
-        st.sidebar.caption("✅ ML Model Loaded & Active")
-    else:
-        st.sidebar.warning("⚠️ Model not loaded. Run `train_model.py`.")
-else:
-    st.sidebar.error("🔴 **Backend Offline**")
-    st.sidebar.caption(
-        "Start FastAPI backend in your terminal:\n"
-        "```bash\nuvicorn main:app --reload --port 8000\n```"
-    )
-
-st.sidebar.divider()
-
-# Configurable Decision Threshold
-st.sidebar.markdown("### ⚙️ **Threshold Settings**")
-threshold_percent = st.sidebar.slider(
-    "Confidence Threshold (%)",
-    min_value=50,
-    max_value=90,
-    value=60,
-    step=5,
-    help=(
-        "If prediction confidence is below this threshold, the review is classified as "
-        "Neutral / Uncertain (threshold-based decision) since the model was trained on binary data."
-    )
-)
-confidence_threshold = threshold_percent / 100.0
-
-st.sidebar.caption(
-    f"Reviews with confidence < **{threshold_percent}%** are categorized as "
-    "**Neutral / Uncertain** to avoid false certainty."
-)
-
-st.sidebar.divider()
-st.sidebar.markdown(
-    """
-    **Project Info:**
-    - **Architecture**: Decoupled FastAPI + Streamlit
-    - **ML Model**: TF-IDF + Logistic Regression
-    - **Dataset**: IMDb Movie Reviews (Stratified 80/20)
-    - **Integrations**: OMDb API
-    """
-)
+confidence_threshold = 0.60
 
 
 # ==========================================
