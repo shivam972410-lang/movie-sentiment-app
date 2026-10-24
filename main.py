@@ -597,6 +597,83 @@ def _normalize_title(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
+async def _fetch_wikipedia_movie(query: str):
+    """Dynamic fallback: fetch movie info from Wikipedia API for any uncataloged movie."""
+    headers = {'User-Agent': 'MovieSentimentApp/2.0 (student minor project; academic demo)'}
+    try:
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            # Step 1: Search for the page
+            search_resp = await client.get(
+                "https://en.wikipedia.org/w/api.php",
+                params={"action": "query", "list": "search", "srsearch": query + " film", "format": "json"},
+                headers=headers
+            )
+            hits = search_resp.json().get("query", {}).get("search", [])
+            if not hits:
+                return None
+            page_title = hits[0]["title"]
+
+            # Step 2: Get extract and images
+            detail_resp = await client.get(
+                "https://en.wikipedia.org/w/api.php",
+                params={
+                    "action": "query", "titles": page_title,
+                    "prop": "extracts|images", "exintro": 1,
+                    "explaintext": 1, "format": "json"
+                },
+                headers=headers
+            )
+            pages = detail_resp.json().get("query", {}).get("pages", {})
+            page = list(pages.values())[0]
+            extract = page.get("extract", "").strip()
+            if not extract:
+                return None
+
+            # Step 3: Get poster URL from film/cover image
+            poster_url = "N/A"
+            images = [
+                i["title"] for i in page.get("images", [])
+                if any(w in i["title"].lower() for w in ["poster", "film", "cover", "movie"])
+            ]
+            if images:
+                img_resp = await client.get(
+                    "https://en.wikipedia.org/w/api.php",
+                    params={
+                        "action": "query", "titles": images[0],
+                        "prop": "imageinfo", "iiprop": "url", "format": "json"
+                    },
+                    headers=headers
+                )
+                img_pages = img_resp.json().get("query", {}).get("pages", {})
+                img_page = list(img_pages.values())[0]
+                raw_url = img_page.get("imageinfo", [{}])[0].get("url", "")
+                if raw_url:
+                    poster_url = raw_url.split("?")[0]
+
+            year_match = re.search(r'\b(19\d{2}|20\d{2})\b', extract)
+            year = year_match.group(1) if year_match else "N/A"
+
+            return {
+                "Title": page_title,
+                "Year": year,
+                "Rated": "N/A",
+                "Runtime": "N/A",
+                "Genre": "Cinema",
+                "Director": "N/A",
+                "Writer": "N/A",
+                "Actors": "N/A",
+                "Plot": extract[:800],
+                "Poster": poster_url,
+                "imdbRating": "N/A",
+                "imdbVotes": "N/A",
+                "Metascore": "N/A",
+                "BoxOffice": "N/A",
+                "Response": "True"
+            }
+    except Exception:
+        return None
+
+
 def _find_catalog_movie(query: str):
     """Checks offline catalog for famous titles if OMDb key is inactive/unconfigured."""
     q = query.strip().lower()
@@ -755,13 +832,33 @@ async def get_movie_details(title: str, apikey: Optional[str] = Query(default=No
             "plot_sentiment": plot_sentiment
         }
 
-    # 3. If no key and not in catalog, return clear activation instructions
+    # 3. Try Wikipedia dynamic fallback for any movie not in catalog
+    try:
+        wiki_movie = await _fetch_wikipedia_movie(title_clean)
+        if wiki_movie:
+            plot_sentiment = None
+            plot_text = wiki_movie.get("Plot", "")
+            if plot_text:
+                try:
+                    plot_sentiment = predict_sentiment(plot_text, confidence_threshold=CONFIDENCE_THRESHOLD_ENV)
+                except Exception:
+                    plot_sentiment = None
+            return {
+                "status": "success",
+                "source": "wikipedia_fallback",
+                "message": "Movie details loaded from Wikipedia. For richer data (cast, ratings), configure an active OMDb API key.",
+                "movie": wiki_movie,
+                "plot_sentiment": plot_sentiment
+            }
+    except Exception:
+        pass
+
+    # 4. Final fallback: movie not found anywhere
     return {
         "status": "unconfigured",
         "message": (
-            "OMDb returned '401 Unauthorized' (API key is inactive). "
-            "Please check your email and click the verification link sent by OMDb to activate it. "
-            "Tip: You can instantly test movies from our verified catalog (e.g., 'Inception', 'The Dark Knight', 'Interstellar', 'Titanic', 'The Godfather', 'Oppenheimer')."
+            "Movie not found in catalog or Wikipedia. "
+            "Please configure an active OMDb API key at omdbapi.com/apikey.aspx for full movie search."
         ),
         "movie": None,
         "plot_sentiment": None
