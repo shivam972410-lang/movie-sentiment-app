@@ -21,6 +21,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
 
+import auth_ui
+
 # Page configuration
 st.set_page_config(
     page_title="Movie Sentiment Analysis",
@@ -194,6 +196,12 @@ SAMPLE_REVIEWS = [
     }
 ]
 
+# ==========================================
+# Authentication gate: anonymous users only ever see the Login / Signup page.
+# Nothing below this line runs unless the user holds a valid session.
+# ==========================================
+auth_ui.require_login(DEFAULT_BACKEND_URL)
+
 # Initialize session states
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -281,6 +289,9 @@ is_online, health_data = check_backend_health(backend_url)
 confidence_threshold = 0.60
 
 
+# Logged-in user header with the Logout button
+auth_ui.render_user_bar(backend_url)
+
 # ==========================================
 # Navigation Tabs
 # ==========================================
@@ -338,7 +349,12 @@ with tabs[0]:
                         "review": review_text.strip(),
                         "confidence_threshold": confidence_threshold
                     }
-                    resp = requests.post(f"{backend_url}/predict", json=payload, timeout=10.0)
+                    resp = requests.post(
+                        f"{backend_url}/predict", json=payload,
+                        headers=auth_ui.auth_headers(), timeout=10.0
+                    )
+                    if resp.status_code == 401:
+                        auth_ui.force_logout("Your session expired. Please log in again.")
                     if resp.status_code == 200:
                         data = resp.json()
                         sentiment = data["sentiment"]
@@ -516,7 +532,12 @@ with tabs[1]:
                                 "reviews": chunk,
                                 "confidence_threshold": confidence_threshold
                             }
-                            resp = requests.post(f"{backend_url}/predict/batch", json=req_payload, timeout=30.0)
+                            resp = requests.post(
+                                f"{backend_url}/predict/batch", json=req_payload,
+                                headers=auth_ui.auth_headers(), timeout=30.0
+                            )
+                            if resp.status_code == 401:
+                                auth_ui.force_logout("Your session expired. Please log in again.")
                             if resp.status_code == 200:
                                 res_chunk = resp.json().get("results", [])
                                 all_results.extend(res_chunk)
@@ -664,7 +685,12 @@ with tabs[2]:
         else:
             with st.spinner(f"Retrieving '{search_target}' movie data..."):
                 try:
-                    resp = requests.get(f"{backend_url}/movie/{search_target}", timeout=10.0)
+                    resp = requests.get(
+                        f"{backend_url}/movie/{search_target}",
+                        headers=auth_ui.auth_headers(), timeout=10.0
+                    )
+                    if resp.status_code == 401:
+                        auth_ui.force_logout("Your session expired. Please log in again.")
                     if resp.status_code == 200:
                         st.session_state.searched_movie_data = resp.json()
                     else:
@@ -773,7 +799,11 @@ with tabs[3]:
 
     if is_online:
         try:
-            m_resp = requests.get(f"{backend_url}/metrics", timeout=5.0)
+            m_resp = requests.get(
+                f"{backend_url}/metrics", headers=auth_ui.auth_headers(), timeout=5.0
+            )
+            if m_resp.status_code == 401:
+                auth_ui.force_logout("Your session expired. Please log in again.")
             if m_resp.status_code == 200:
                 metrics = m_resp.json().get("metrics")
                 metrics_loaded = True

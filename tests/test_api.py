@@ -3,6 +3,13 @@ API Integration tests for FastAPI backend endpoints.
 """
 
 import unittest
+import uuid
+
+try:  # isolated test DB/settings; must be imported before `main`
+    from . import _env  # noqa: F401  (pytest / package mode)
+except ImportError:
+    import _env  # noqa: F401  (python -m unittest discover -s tests)
+
 from fastapi.testclient import TestClient
 from main import app
 
@@ -12,6 +19,20 @@ class TestFastAPIBackend(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.client = TestClient(app)
+        # Prediction / movie / metrics endpoints are protected: register a
+        # throw-away user and authenticate every request in this class.
+        email = f"api-tests-{uuid.uuid4().hex[:8]}@example.com"
+        password = "Str0ng!Passw0rd"
+        signup = cls.client.post("/auth/signup", json={
+            "full_name": "API Tester",
+            "email": email,
+            "password": password,
+            "confirm_password": password,
+        })
+        assert signup.status_code == 201, signup.text
+        login = cls.client.post("/auth/login", json={"email": email, "password": password})
+        assert login.status_code == 200, login.text
+        cls.client.headers.update({"Authorization": f"Bearer {login.json()['access_token']}"})
 
     def test_root_endpoint(self):
         """Test GET / returns online status and endpoint map."""

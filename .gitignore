@@ -3,6 +3,11 @@
 *.env
 !.env.example
 
+# Local user-account databases (never commit credentials/hashes)
+*.db
+*.sqlite
+*.sqlite3
+
 # Python cache & virtual environments
 __pycache__/
 *.py[cod]

@@ -11,3 +11,10 @@ services:
         value: 0.60
       - key: OMDB_API_KEY
         sync: false
+      # Secret used to sign login tokens: Render generates a random value for you.
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      # PostgreSQL connection string for user accounts (set it in the Render dashboard).
+      # Required for accounts to survive restarts: the free-tier disk is ephemeral.
+      - key: DATABASE_URL
+        sync: false
