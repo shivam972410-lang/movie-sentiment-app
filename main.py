@@ -9,14 +9,18 @@ import json
 import httpx
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import re
 
-# Load environment variables
+# Load environment variables (must happen before auth/database read their config)
 load_dotenv()
 
+from auth import get_current_user, router as auth_router
+from database import init_db
 from ml_service import (
     predict_sentiment,
     load_metrics,
@@ -46,14 +50,41 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Enable CORS for frontend communication
+# Enable CORS for frontend communication.
+# Authentication uses an Authorization header (not cookies), so credentialed
+# CORS is not needed. Set CORS_ORIGINS (comma-separated) to restrict origins.
+_cors_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()] or ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Create the users / revoked-token tables if they do not exist yet.
+init_db()
+
+# Authentication routes: /auth/signup, /auth/login, /auth/logout, /auth/me
+app.include_router(auth_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    """
+    Same 422 shape as FastAPI's default, but WITHOUT echoing the submitted
+    values back (the default includes an "input" field, which would leak a
+    password typed into a rejected signup/login request).
+    """
+    errors = [
+        {
+            "type": err.get("type"),
+            "loc": list(err.get("loc", [])),
+            "msg": str(err.get("msg", "Invalid value")).removeprefix("Value error, "),
+        }
+        for err in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": errors})
 
 
 # ==========================================
@@ -122,7 +153,11 @@ def root():
             "predict": "/predict",
             "batch_predict": "/predict/batch",
             "movie_lookup": "/movie/{title}",
-            "metrics": "/metrics"
+            "metrics": "/metrics",
+            "signup": "/auth/signup",
+            "login": "/auth/login",
+            "logout": "/auth/logout",
+            "current_user": "/auth/me"
         }
     }
 
@@ -152,7 +187,12 @@ def health_check():
     }
 
 
-@app.post("/predict", response_model=PredictResponse, tags=["Sentiment Analysis"])
+@app.post(
+    "/predict",
+    response_model=PredictResponse,
+    tags=["Sentiment Analysis"],
+    dependencies=[Depends(get_current_user)],
+)
 def predict(request: PredictRequest):
     """
     Analyzes sentiment of a movie review.
@@ -190,7 +230,12 @@ def predict(request: PredictRequest):
         )
 
 
-@app.post("/predict/batch", response_model=BatchPredictResponse, tags=["Sentiment Analysis"])
+@app.post(
+    "/predict/batch",
+    response_model=BatchPredictResponse,
+    tags=["Sentiment Analysis"],
+    dependencies=[Depends(get_current_user)],
+)
 def predict_batch(request: BatchPredictRequest):
     """Batch prediction endpoint for CSV rows or multiple movie reviews."""
     threshold = request.confidence_threshold if request.confidence_threshold is not None else CONFIDENCE_THRESHOLD_ENV
@@ -731,7 +776,7 @@ def _find_catalog_movie(query: str):
     return None
 
 
-@app.get("/movies/catalog", tags=["OMDb Integration"])
+@app.get("/movies/catalog", tags=["OMDb Integration"], dependencies=[Depends(get_current_user)])
 def get_catalog_movies():
     """Returns list of all available catalog movies."""
     return {
@@ -750,7 +795,7 @@ def get_catalog_movies():
     }
 
 
-@app.get("/movie/{title}", tags=["OMDb Integration"])
+@app.get("/movie/{title}", tags=["OMDb Integration"], dependencies=[Depends(get_current_user)])
 async def get_movie_details(title: str, apikey: Optional[str] = Query(default=None)):
     """
     Fetches film metadata from OMDb API and analyzes plot sentiment when available.
@@ -866,7 +911,7 @@ async def get_movie_details(title: str, apikey: Optional[str] = Query(default=No
 
 
 
-@app.get("/metrics", tags=["Model Evaluation"])
+@app.get("/metrics", tags=["Model Evaluation"], dependencies=[Depends(get_current_user)])
 def get_model_metrics():
     """Returns actual evaluation metrics calculated during training."""
     try:
